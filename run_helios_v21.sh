@@ -1,4 +1,3 @@
-cat > /opt/helios/run_helios_v21.sh <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
 
