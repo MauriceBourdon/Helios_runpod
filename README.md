@@ -48,3 +48,4 @@ Outputs:
 Tip:
 - Add `--no-compile` to reduce time-to-first-frame.
 - Default runner does NOT pass `--transformer_path` to reduce transformer type mismatch warnings.
+# trigger jeu.  5 mars 2026 17:37:39 CET
