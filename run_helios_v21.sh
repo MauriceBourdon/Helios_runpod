@@ -136,7 +136,10 @@ if [[ "$COMPILE" -eq 1 ]]; then
 fi
 
 # Helper to find CLI flag in --help output
-HELP_TXT="$(python "$HELIOS_DIR/infer_helios.py" --help 2>/dev/null || true)"
+HELP_TXT=""
+if [[ -n "$START_IMAGE" || -n "$END_IMAGE" || -n "$VIDEO_PATH" ]]; then
+  HELP_TXT="$(python "$HELIOS_DIR/infer_helios.py" --help 2>/dev/null || true)"
+fi
 find_flag () {
   local value="$1"; shift
   local -a candidates=("$@")
