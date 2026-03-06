@@ -6,7 +6,7 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 ENV PYTHONUNBUFFERED=1
 
 RUN apt-get update && apt-get install -y \
-    git git-lfs ffmpeg nano curl wget tmux \
+    git git-lfs ffmpeg nano curl wget tmux python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /opt/helios
@@ -19,5 +19,8 @@ COPY menu_helios.sh /opt/helios/menu_helios.sh
 
 RUN chmod +x /opt/helios/*.sh
 
-# In RunPod Template UI, set Start Command to:
+CMD ["bash", "/opt/helios/entrypoint.sh"]
+
+# In RunPod Template UI, prefer leaving Start Command empty so this CMD is used.
+# If you override it manually, keep using:
 #   bash /opt/helios/entrypoint.sh

@@ -5,7 +5,8 @@ This folder is meant to be committed to Git as-is.
 ## What it does
 - Builds on an official RunPod PyTorch base image (CUDA 12.8.1 / torch 2.8)
 - Keeps model weights OUT of the Docker image (download into /workspace)
-- Auto bootstraps Helios in a tmux session so Jupyter/SSH stay responsive
+- Starts the native RunPod services first (`/start.sh`) so Jupyter/SSH/web terminal keep working
+- Auto bootstraps Helios in a tmux session so setup can run without blocking the pod UI
 - Provides a runner with prompt args + dated output folders
 
 ## Build & push
@@ -24,12 +25,17 @@ docker push <your_dockerhub_user>/helios-runpod:v2.1
   - HF_TOKEN=<your_hf_token>
   - optional: MODEL=distilled
 - Start Command:
-  - `bash /opt/helios/entrypoint.sh`
+  - leave it empty so the Docker `CMD` is used
+  - if you override it manually, use `bash /opt/helios/entrypoint.sh`
+
+Important:
+- If you replace the start command with a custom command that does not call `/start.sh`, RunPod's Jupyter, SSH, and web terminal services will not come up.
 
 ## After start
 Bootstrap logs:
 ```bash
 tmux attach -t helios_boot
+tail -f /workspace/Helios/.runpod/bootstrap.log
 ```
 
 Run:
@@ -48,4 +54,3 @@ Outputs:
 Tip:
 - Add `--no-compile` to reduce time-to-first-frame.
 - Default runner does NOT pass `--transformer_path` to reduce transformer type mismatch warnings.
-# trigger jeu.  5 mars 2026 17:37:39 CET
