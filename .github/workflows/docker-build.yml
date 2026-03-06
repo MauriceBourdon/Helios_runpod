@@ -41,4 +41,4 @@ jobs:
           context: .
           push: true
           platforms: linux/amd64
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/helios-runpod:v2.1
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/helios-runpod:v2.2
