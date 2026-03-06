@@ -22,7 +22,11 @@ START_IMAGE=""
 END_IMAGE=""
 VIDEO_PATH=""
 
+mkdir -p /workspace/.cache/huggingface /workspace/tmp
 export HF_HUB_DISABLE_XET="${HF_HUB_DISABLE_XET:-1}"
+export HF_HOME=/workspace/.cache/huggingface
+export HF_HUB_CACHE=/workspace/.cache/huggingface/hub
+export TMPDIR=/workspace/tmp
 
 usage() {
   cat <<'EOF'
