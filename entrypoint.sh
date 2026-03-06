@@ -32,4 +32,15 @@ bash /opt/helios/menu_helios.sh
 
 EOF
 
-tail -f /dev/null
+# Start JupyterLab on 8888 (needed for RunPod proxy)
+if command -v jupyter-lab >/dev/null 2>&1; then
+  echo "[entrypoint] starting jupyter-lab on :8888"
+  jupyter-lab --allow-root --no-browser --port=8888 --ip=0.0.0.0 \
+    --ServerApp.allow_origin="*" \
+    --ServerApp.preferred_dir=/workspace &
+else
+  echo "[entrypoint] jupyter-lab not found"
+fi
+
+# keep container alive
+wait
