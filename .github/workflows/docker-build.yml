@@ -43,4 +43,4 @@ jobs:
           platforms: linux/amd64
           provenance: false
           sbom: false
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/helios-runpod:v2.2
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/helios-runpod:v2.3
