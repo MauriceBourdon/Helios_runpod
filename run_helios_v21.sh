@@ -198,6 +198,4 @@ CUDA_VISIBLE_DEVICES=0 python "$HELIOS_DIR/infer_helios.py" "${ARGS[@]}"
 
 echo
 echo "[run] DONE -> $OUT_DIR"
-SH
 
-chmod +x /opt/helios/run_helios_v21.sh
