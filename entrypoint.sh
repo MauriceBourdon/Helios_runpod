@@ -13,6 +13,14 @@ echo "[entrypoint] If you set HF_TOKEN env var, model download will be faster."
 echo "[entrypoint] Helios dir: ${HELIOS_DIR}"
 echo "[entrypoint] Bootstrap log: ${BOOTSTRAP_LOG}"
 
+mkdir -p /workspace/.cache/huggingface /workspace/tmp
+export HF_HOME=/workspace/.cache/huggingface
+export HF_HUB_CACHE=/workspace/.cache/huggingface/hub
+export TRANSFORMERS_CACHE=/workspace/.cache/huggingface/transformers
+export DIFFUSERS_CACHE=/workspace/.cache/huggingface/diffusers
+export TMPDIR=/workspace/tmp
+export HF_HUB_DISABLE_XET="${HF_HUB_DISABLE_XET:-1}"
+
 mkdir -p "$BOOTSTRAP_LOG_DIR"
 
 RUNPOD_PID=""
@@ -56,7 +64,7 @@ cat <<'EOF'
 [entrypoint] Useful commands:
 
 # Watch bootstrap logs:
-tmux attach -t helios_boot
+tmux attach -t "$BOOTSTRAP_SESSION"
 tail -f /workspace/Helios/.runpod/bootstrap.log
 
 # Run Helios (after model is present):
