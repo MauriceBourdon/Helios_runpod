@@ -3,14 +3,13 @@ set -euo pipefail
 
 MODEL="${MODEL:-distilled}"
 DOWNLOAD="auto"     # auto|yes|no
-HELIOS_DIR="/workspace/Helios"
+HELIOS_DIR="${HELIOS_DIR:-/workspace/Helios}"
 
 HF_REPO_BASE="BestWishYSH/Helios-Base"
 HF_REPO_MID="BestWishYSH/Helios-Mid"
 HF_REPO_DISTILLED="BestWishYSH/Helios-Distilled"
 
 CUSTOM_REPO=""
-CUSTOM_LOCAL_DIR=""
 
 export HF_HUB_DISABLE_XET="${HF_HUB_DISABLE_XET:-1}"
 
@@ -25,7 +24,7 @@ export TEMP=/workspace/tmp
 export TMP=/workspace/tmp
 
 usage() {
-  echo "Usage: bash bootstrap_v21.sh [--model base|mid|distilled] [--download auto|yes|no] [--repo REPO_ID] [--local-dir PATH] [--helios-dir PATH]"
+  echo "Usage: bash bootstrap_v21.sh [--model base|mid|distilled] [--download auto|yes|no] [--repo REPO_ID] [--helios-dir PATH]"
   exit 0
 }
 
@@ -34,7 +33,6 @@ while [[ $# -gt 0 ]]; do
     --model) MODEL="${2:-}"; shift 2;;
     --download) DOWNLOAD="${2:-}"; shift 2;;
     --repo) CUSTOM_REPO="${2:-}"; shift 2;;
-    --local-dir) CUSTOM_LOCAL_DIR="${2:-}"; shift 2;;
     --helios-dir) HELIOS_DIR="${2:-}"; shift 2;;
     -h|--help) usage;;
     *) echo "Unknown arg: $1"; usage;;
@@ -48,13 +46,8 @@ case "$MODEL" in
   *) echo "Invalid --model: $MODEL"; exit 2;;
 esac
 
-LOCAL_ROOT="$HELIOS_DIR/BestWishYSH"
-LOCAL_DIR_DEFAULT="$LOCAL_ROOT/$(basename "$HF_REPO")"
-LOCAL_DIR="${CUSTOM_LOCAL_DIR:-$LOCAL_DIR_DEFAULT}"
-
-echo "[bootstrap] model=$MODEL repo=$HF_REPO local_dir=$LOCAL_DIR download=$DOWNLOAD"
+echo "[bootstrap] model=$MODEL repo=$HF_REPO download=$DOWNLOAD"
 echo "[bootstrap] HELIOS_DIR=$HELIOS_DIR"
-echo "[bootstrap] HF_HUB_DISABLE_XET=$HF_HUB_DISABLE_XET"
 echo "[bootstrap] HF_HOME=$HF_HOME"
 echo "[bootstrap] HF_HUB_CACHE=$HF_HUB_CACHE"
 echo "[bootstrap] TMPDIR=$TMPDIR"
@@ -69,10 +62,10 @@ cd "$HELIOS_DIR"
 # Ensure runpod state dir exists
 mkdir -p "$HELIOS_DIR/.runpod"
 
-# Create venv if missing
+# Create venv if missing (reuse torch from system image)
 if [[ ! -d "$HELIOS_DIR/.venv" ]]; then
-  echo "[bootstrap] creating venv..."
-  python3 -m venv "$HELIOS_DIR/.venv"
+  echo "[bootstrap] creating venv (system-site-packages)..."
+  python3 -m venv "$HELIOS_DIR/.venv" --system-site-packages
 fi
 source "$HELIOS_DIR/.venv/bin/activate"
 python -m pip install --upgrade pip setuptools wheel
@@ -86,8 +79,8 @@ else
   echo "ok" > "$HELIOS_DIR/.runpod/deps_ok.txt"
 fi
 
-# Ensure HF CLI is available even on subsequent boots
-command -v hf >/dev/null 2>&1 || pip install -U "huggingface_hub[cli]"
+# Ensure HF CLI + libs available
+python -m pip install -U "huggingface_hub[cli]" >/dev/null 2>&1 || true
 
 # Patch missing importlib (repo bug seen in practice)
 if ! grep -q "^import importlib" "$HELIOS_DIR/infer_helios.py"; then
@@ -95,34 +88,53 @@ if ! grep -q "^import importlib" "$HELIOS_DIR/infer_helios.py"; then
   sed -i '1i import importlib' "$HELIOS_DIR/infer_helios.py"
 fi
 
-# Record model path for runner
-echo "$LOCAL_DIR" > "$HELIOS_DIR/.runpod/model_path.txt"
+# Stage2 scheduler KeyError patch (safe one-liner), apply only if pattern exists
+python - <<'PY' || true
+import pathlib
+p = pathlib.Path("/workspace/Helios/helios/diffusers_version/pipeline_helios_diffusers.py")
+if p.exists():
+    txt = p.read_text()
+    old = "ori_sigma = 1 - self.scheduler.ori_start_sigmas[i_s]  # the original coeff of signal"
+    new = "ori_sigma = 1 - self.scheduler.ori_start_sigmas.get(i_s, self.scheduler.ori_start_sigmas.get(0, 0.0))  # the original coeff of signal"
+    if old in txt and new not in txt:
+        p.write_text(txt.replace(old, new, 1))
+        print("[bootstrap] patched Stage2 ori_start_sigmas KeyError")
+PY
 
-MODEL_OK=0
-if [[ -f "$LOCAL_DIR/model_index.json" ]]; then
-  MODEL_OK=1
-fi
+# Pre-download model into HF cache (diffusers-style), and record snapshot path for runner
+MODEL_SNAPSHOT_PATH=""
+export HF_REPO="$HF_REPO"
 
 case "$DOWNLOAD" in
   no)
-    [[ $MODEL_OK -eq 1 ]] || { echo "[bootstrap] missing model at $LOCAL_DIR (download=no)"; exit 3; }
+    echo "[bootstrap] download=no -> expecting model already in HF cache."
     ;;
-  yes)
-    echo "[bootstrap] downloading $HF_REPO..."
-    hf download "$HF_REPO" --local-dir "$LOCAL_DIR"
-    ;;
-  auto)
-    if [[ $MODEL_OK -eq 1 ]]; then
-      echo "[bootstrap] model already present."
-    else
-      echo "[bootstrap] downloading $HF_REPO..."
-      hf download "$HF_REPO" --local-dir "$LOCAL_DIR"
-    fi
+  yes|auto)
+    echo "[bootstrap] snapshot_download (cache) for $HF_REPO ..."
+    MODEL_SNAPSHOT_PATH="$(python - <<'PY'
+from huggingface_hub import snapshot_download
+import os
+repo = os.environ["HF_REPO"]
+cache_dir = os.environ.get("HF_HUB_CACHE")
+p = snapshot_download(repo_id=repo, cache_dir=cache_dir)
+print(p)
+PY
+)"
     ;;
   *)
     echo "Invalid --download: $DOWNLOAD"
     exit 2
     ;;
 esac
+
+# Record model path for runner (prefer snapshot path)
+if [[ -n "$MODEL_SNAPSHOT_PATH" ]]; then
+  echo "$MODEL_SNAPSHOT_PATH" > "$HELIOS_DIR/.runpod/model_path.txt"
+  echo "[bootstrap] model snapshot: $MODEL_SNAPSHOT_PATH"
+else
+  # fallback: keep old behavior (runner may use repo_id instead)
+  echo "$HF_REPO" > "$HELIOS_DIR/.runpod/model_path.txt"
+  echo "[bootstrap] model snapshot not resolved; recorded repo id: $HF_REPO"
+fi
 
 echo "[bootstrap] done."
