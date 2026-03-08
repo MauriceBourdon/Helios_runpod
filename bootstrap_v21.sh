@@ -53,8 +53,8 @@ echo "[bootstrap] HF_HUB_CACHE=$HF_HUB_CACHE"
 echo "[bootstrap] TMPDIR=$TMPDIR"
 
 # Clone Helios if needed
-if [[ ! -d "$HELIOS_DIR" ]]; then
-  echo "[bootstrap] cloning Helios..."
+if [[ ! -f "$HELIOS_DIR/infer_helios.py" ]]; then
+echo "[bootstrap] cloning Helios..."
   git clone --depth=1 https://github.com/PKU-YuanGroup/Helios.git "$HELIOS_DIR"
 fi
 cd "$HELIOS_DIR"
